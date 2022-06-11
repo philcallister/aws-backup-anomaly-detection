@@ -8,7 +8,7 @@ const docClient = new AWS.DynamoDB.DocumentClient();
  * @return {Promise}    A promise to return The DynamoDB item {arn, snapshot}
  */
 exports.getItem = async (arn) => {
-  var params = {
+  const params = {
     TableName: TABLE,
     Key: {
       arn: arn
@@ -24,7 +24,7 @@ exports.getItem = async (arn) => {
  * @return {Promise}     A promise to add the item
  */
 exports.putItem = async (arn, snap) => {
-  var params = {
+  const params = {
     TableName: TABLE,
     Item: {
       arn: arn,

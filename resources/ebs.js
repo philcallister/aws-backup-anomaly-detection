@@ -8,7 +8,7 @@ const ec2 = new AWS.EC2();
  * @param  {Object}  params The snapshots to compare
  * @return {Promise} A promise to return an array of changed blocks
  */
-async function snapshotChangedBlocks(params) {
+const snapshotChangedBlocks = async (params) => {
   return await ebs.listChangedBlocks(params).promise();
 };
 
@@ -17,8 +17,8 @@ async function snapshotChangedBlocks(params) {
  * @param  {String}  vol The volume ID to match
  * @return {Promise} A promise to return the matching volume description
  */
-async function describeVolumes(vol) {
-  var params = {
+const describeVolumes = async (vol) => {
+  const params = {
     VolumeIds: [vol]
   };
   return await ec2.describeVolumes(params).promise();
@@ -66,7 +66,7 @@ exports.calcTotalChangedBlocks = async (currentSnap, prevSnap) => {
     // Retrieve all changed blocks between the given snapshots. We'll use this
     // to return the total number of blocks changed
     while (nextToken !== null) {
-      var blocks = await snapshotChangedBlocks(params);
+      let blocks = await snapshotChangedBlocks(params);
 
       totalChangedBlocks += blocks.ChangedBlocks.length;
       nextToken = blocks.NextToken;

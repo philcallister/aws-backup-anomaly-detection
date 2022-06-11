@@ -7,28 +7,22 @@ const cloudwatch = require('./cloudwatch');
  * @param  {String} resource A resource string containing a snapshot
  * @return {String}          A snapshot string
  */
-function getSnapshot(resource) {
+const getSnapshot = (resource) => {
   const regex = /snap-[0-9a-f]+$/g;
   return (resource.match(regex))[0];
-}
+};
 
 /**
  * Get the volume from the given resource string
  * @param  {String} resource A resource string containing a volume
  * @return {String}          A volume string
  */
-function getVolume(resource) {
+const getVolume = (resource) => {
   const regex = /vol-[0-9a-f]+$/g;
   return (resource.match(regex))[0];
-}
+};
 
-/**
- * Perform anomaly detection process by comparing current and previous
- * snapshots for number of changed blocks
- * @param {String} arn   The EBS volume ARN
- * @param {String} event The incoming AWS backup event
- */
-async function anomalyDetection(arn, event) {
+const anomalyDetection = async (arn, event) => {
   // Get Volume details
   const item = await dynamodb.getItem(arn);
   console.log(item);
@@ -44,7 +38,7 @@ async function anomalyDetection(arn, event) {
 
     // Let's see how many blocks changed between the current
     // and previous snapshots
-    var totalChangedBlocks = await ebs.calcTotalChangedBlocks(currentSnap, prevSnap);
+    const totalChangedBlocks = await ebs.calcTotalChangedBlocks(currentSnap, prevSnap);
     console.log("Total Changed Blocks...: ", totalChangedBlocks);
 
     // Add a custom CloudWatch metric with the number of changed blocks between
@@ -60,7 +54,7 @@ async function anomalyDetection(arn, event) {
 
   // Save the ARN details for this latest backup
   await dynamodb.putItem(arn, currentSnap);
-}
+};
 
 /**
  * Lambda event handler
