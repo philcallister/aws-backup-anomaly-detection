@@ -22,6 +22,12 @@ const getVolume = (resource) => {
   return (resource.match(regex))[0];
 };
 
+/**
+ * Perform anomaly detection process by comparing current and previous
+ * snapshots for number of changed blocks
+ * @param {String} arn   The EBS volume ARN
+ * @param {String} event The incoming AWS backup event
+ */
 const anomalyDetection = async (arn, event) => {
   // Get Volume details
   const item = await dynamodb.getItem(arn);
