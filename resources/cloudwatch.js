@@ -16,6 +16,7 @@ exports.addAlarm = async(arn) => {
   const alarm = {
     AlarmName: `Backup-Anomaly-Alarm/${arn}`,
     AlarmDescription: `Backup-Anomaly-Alarm/${arn}`,
+    AlarmActions: [process.env.SNS_TOPIC_ARN],
     ComparisonOperator: "GreaterThanUpperThreshold",
     EvaluationPeriods: "1",
     TreatMissingData: "ignore",

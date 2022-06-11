@@ -1,6 +1,8 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { AttributeType, Table } from 'aws-cdk-lib/aws-dynamodb';
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -10,6 +12,18 @@ import * as iam from "aws-cdk-lib/aws-iam";
 export class AnomalyDetection extends Construct {
   constructor(scope: Construct, id: string) {
     super(scope, id);
+
+    //////////////////////////////////////////////////////////////////////////
+    // Parameters
+    const tagKey = new cdk.CfnParameter(this, 'TagKeyEBS', {
+      type: 'String',
+      description: "This is the tag key for your EBS volumes."
+    });
+
+    const email = new cdk.CfnParameter(this, 'Email', {
+      type: 'String',
+      description: "The email address to use for alarm notifications."
+    });
 
     //////////////////////////////////////////////////////////////////////////
     // DynamoDB configuration
@@ -29,10 +43,21 @@ export class AnomalyDetection extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY, // NOT recommended for production code
     });
 
+    //////////////////////////////////////////////////////////////////////////
+    // SNS Topic configuration
+    const snsTopic = new sns.Topic(this, 'AnomalyDetectionTopic', {
+      displayName: 'AWS Backup AnomalyDetection Topic',
+      fifo: false
+    });
+    snsTopic.addSubscription(new subscriptions.EmailSubscription(email.valueAsString));
 
     //////////////////////////////////////////////////////////////////////////
     // Lambda configuration
     const handler = new lambda.Function(this, "AnomalyDetection", {
+      environment: {
+        TAG_KEY_EBS: tagKey.valueAsString,
+        SNS_TOPIC_ARN: snsTopic.topicArn
+      },
       runtime: lambda.Runtime.NODEJS_14_X,
       code: lambda.Code.fromAsset("resources"),
       handler: "index.handler"
@@ -46,6 +71,10 @@ export class AnomalyDetection extends Construct {
       actions: ['ebs:ListChangedBlocks'],
       resources: ['*'],
     });
+    const ec2Policy = new iam.PolicyStatement({
+      actions: ['ec2:DescribeVolumes'],
+      resources: ['*'],
+    });
     const cwPolicy = new iam.PolicyStatement({
       actions: ['cloudwatch:PutMetricAlarm'],
       resources: ['*'],
@@ -53,7 +82,7 @@ export class AnomalyDetection extends Construct {
 
     handler.role?.attachInlinePolicy(
       new iam.Policy(this, 'AnomalyDetectionInlinePolicy', {
-        statements: [ebsPolicy, cwPolicy],
+        statements: [ebsPolicy, ec2Policy, cwPolicy],
       }),
     );
 

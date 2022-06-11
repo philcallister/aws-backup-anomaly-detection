@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk');
 const ebs = new AWS.EBS();
+const ec2 = new AWS.EC2();
 
 /**
  * Retrieve the next set of changed blocks when comparing the snapshots
@@ -9,7 +10,41 @@ const ebs = new AWS.EBS();
  */
 async function snapshotChangedBlocks(params) {
   return await ebs.listChangedBlocks(params).promise();
-}
+};
+
+/**
+ * Retrieve the volumes matching the given volume ID (should be 1)
+ * @param  {String}  vol The volume ID to match
+ * @return {Promise} A promise to return the matching volume description
+ */
+async function describeVolumes(vol) {
+  var params = {
+    VolumeIds: [vol]
+  };
+  return await ec2.describeVolumes(params).promise();
+};
+
+/**
+ * Determine if this EBS volume should be processed based on its tags
+ * @param  {String} volume The volume currently being backed up
+ * @return {boolean}       true=the EBS volume should be processed /
+ *                         false=skip this volume
+ */
+exports.isEligible = async (volume) => {
+  const volumes = await describeVolumes(volume);
+  if (volumes?.Volumes?.length > 0) {
+    const volume = volumes.Volumes[0];
+    if (volume?.Tags?.length > 0) {
+      const tags = volume.Tags;
+      const found = tags.find(e => e.Key === process.env.TAG_KEY_EBS);
+      if (found !== undefined) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
 
 /**
  * Calculate the total number of blocks that have changed between
