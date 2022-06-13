@@ -1,6 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { AttributeType, Table } from 'aws-cdk-lib/aws-dynamodb';
+import * as backup from "aws-cdk-lib/aws-backup";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as lambda from "aws-cdk-lib/aws-lambda";
@@ -23,6 +24,18 @@ export class AnomalyDetection extends Construct {
     const email = new cdk.CfnParameter(this, 'Email', {
       type: 'String',
       description: "The email address to use for alarm notifications."
+    });
+
+    //////////////////////////////////////////////////////////////////////////
+    // AWS Backup Plan configuration
+    const plan = backup.BackupPlan.dailyMonthly1YearRetention(this, 'AnomalyDetectionBackupPlan');
+    plan.addSelection('Selection', {
+      resources: [
+        new backup.BackupResource('arn:aws:ec2:*:*:volume/*', {
+          key: `aws:ResourceTag/${tagKey.valueAsString}`,
+          value: ''
+        })
+      ]
     });
 
     //////////////////////////////////////////////////////////////////////////
