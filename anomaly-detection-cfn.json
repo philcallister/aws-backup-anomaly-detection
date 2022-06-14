@@ -1,5 +1,13 @@
 {
   "Parameters": {
+    "AnomalyDetectionTagKey": {
+      "Type": "String",
+      "Description": "This is the tag key for your EBS volumes."
+    },
+    "AnomalyDetectionEmail": {
+      "Type": "String",
+      "Description": "The email address to use for alarm notifications."
+    },
     "BackupAnomalyDetectionS3Bucket": {
       "Type": "String",
       "Default": "anomaly-detection-bucket-s3",
@@ -9,10 +17,127 @@
       "Type": "String",
       "Default": "anomaly-detection-lambda.zip",
       "Description": "Location of Lambda code within given S3 bucket (BackupAnomalyDetectionS3Bucket parameter)"
-    },
+    }
   },
   "Resources": {
-    "BackupAnomalyDetectionDDB": {
+    "AnomalyDetectionAnomalyDetectionBackupPlan": {
+      "Type": "AWS::Backup::BackupPlan",
+      "Properties": {
+        "BackupPlan": {
+          "BackupPlanName": "AnomalyDetectionBackupPlan",
+          "BackupPlanRule": [
+            {
+              "Lifecycle": {
+                "DeleteAfterDays": 35
+              },
+              "RuleName": "Daily",
+              "ScheduleExpression": "cron(0 5 * * ? *)",
+              "TargetBackupVault": {
+                "Fn::GetAtt": [
+                  "AnomalyDetectionAnomalyDetectionBackupPlanVault",
+                  "BackupVaultName"
+                ]
+              }
+            },
+            {
+              "Lifecycle": {
+                "DeleteAfterDays": 365,
+                "MoveToColdStorageAfterDays": 30
+              },
+              "RuleName": "Monthly1Year",
+              "ScheduleExpression": "cron(0 5 1 * ? *)",
+              "TargetBackupVault": {
+                "Fn::GetAtt": [
+                  "AnomalyDetectionAnomalyDetectionBackupPlanVault",
+                  "BackupVaultName"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AnomalyDetectionAnomalyDetectionBackupPlanVault": {
+      "Type": "AWS::Backup::BackupVault",
+      "Properties": {
+        "BackupVaultName": "AnomalyDetectionAnomalyDetectionBackupPlanVault"
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain"
+    },
+    "AnomalyDetectionAnomalyDetectionBackupPlanSelectionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "backup.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "AnomalyDetectionAnomalyDetectionBackupPlanSelection": {
+      "Type": "AWS::Backup::BackupSelection",
+      "Properties": {
+        "BackupPlanId": {
+          "Fn::GetAtt": [
+            "AnomalyDetectionAnomalyDetectionBackupPlan",
+            "BackupPlanId"
+          ]
+        },
+        "BackupSelection": {
+          "IamRoleArn": {
+            "Fn::GetAtt": [
+              "AnomalyDetectionAnomalyDetectionBackupPlanSelectionRole",
+              "Arn"
+            ]
+          },
+          "Conditions": {
+            "StringLike": [
+              {
+                "ConditionKey": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "aws:ResourceTag/",
+                      {
+                        "Ref": "AnomalyDetectionTagKey"
+                      }
+                    ]
+                  ]
+                },
+                "ConditionValue": "*"
+              }
+            ]
+          },
+          "Resources": [
+            "arn:aws:ec2:*:*:volume/*"
+          ],
+          "SelectionName": "Selection"
+        }
+      }
+    },
+    "AnomalyDetectionAnomalyDetectionDB": {
       "Type": "AWS::DynamoDB::Table",
       "Properties": {
         "KeySchema": [
@@ -36,7 +161,26 @@
       "UpdateReplacePolicy": "Delete",
       "DeletionPolicy": "Delete"
     },
-    "BackupAnomalyDetectionServiceRole": {
+    "AnomalyDetectionAnomalyDetectionTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "DisplayName": "AWS Backup AnomalyDetection Topic",
+        "FifoTopic": false
+      }
+    },
+    "AnomalyDetectionAnomalyDetectionTopicTokenSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "Protocol": "email",
+        "TopicArn": {
+          "Ref": "AnomalyDetectionAnomalyDetectionTopic"
+        },
+        "Endpoint": {
+          "Ref": "AnomalyDetectionEmail"
+        }
+      }
+    },
+    "AnomalyDetectionServiceRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
         "AssumeRolePolicyDocument": {
@@ -67,7 +211,7 @@
         ]
       }
     },
-    "BackupAnomalyDetectionServiceRoleDefaultPolicy": {
+    "AnomalyDetectionServiceRoleDefaultPolicy": {
       "Type": "AWS::IAM::Policy",
       "Properties": {
         "PolicyDocument": {
@@ -91,7 +235,7 @@
               "Resource": [
                 {
                   "Fn::GetAtt": [
-                    "BackupAnomalyDetectionDDB",
+                    "AnomalyDetectionAnomalyDetectionDB",
                     "Arn"
                   ]
                 },
@@ -108,15 +252,15 @@
           ],
           "Version": "2012-10-17"
         },
-        "PolicyName": "BackupAnomalyDetectionServiceRoleDefaultPolicy",
+        "PolicyName": "AnomalyDetectionServiceRoleDefaultPolicy",
         "Roles": [
           {
-            "Ref": "BackupAnomalyDetectionServiceRole"
+            "Ref": "AnomalyDetectionServiceRole"
           }
         ]
       }
     },
-    "BackupAnomalyDetectionLambda": {
+    "AnomalyDetection": {
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
@@ -129,25 +273,40 @@
         },
         "Role": {
           "Fn::GetAtt": [
-            "BackupAnomalyDetectionServiceRole",
+            "AnomalyDetectionServiceRole",
             "Arn"
           ]
+        },
+        "Environment": {
+          "Variables": {
+            "TAG_KEY_EBS": {
+              "Ref": "AnomalyDetectionTagKey"
+            },
+            "SNS_TOPIC_ARN": {
+              "Ref": "AnomalyDetectionAnomalyDetectionTopic"
+            }
+          }
         },
         "Handler": "index.handler",
         "Runtime": "nodejs14.x"
       },
       "DependsOn": [
-        "BackupAnomalyDetectionServiceRoleDefaultPolicy",
-        "BackupAnomalyDetectionServiceRole"
+        "AnomalyDetectionServiceRoleDefaultPolicy",
+        "AnomalyDetectionServiceRole"
       ]
     },
-    "BackupAnomalyDetectionInlinePolicy": {
+    "AnomalyDetectionAnomalyDetectionInlinePolicy": {
       "Type": "AWS::IAM::Policy",
       "Properties": {
         "PolicyDocument": {
           "Statement": [
             {
               "Action": "ebs:ListChangedBlocks",
+              "Effect": "Allow",
+              "Resource": "*"
+            },
+            {
+              "Action": "ec2:DescribeVolumes",
               "Effect": "Allow",
               "Resource": "*"
             },
@@ -159,15 +318,15 @@
           ],
           "Version": "2012-10-17"
         },
-        "PolicyName": "BackupAnomalyDetectionInlinePolicy",
+        "PolicyName": "AnomalyDetectionAnomalyDetectionInlinePolicy",
         "Roles": [
           {
-            "Ref": "BackupAnomalyDetectionServiceRole"
+            "Ref": "AnomalyDetectionServiceRole"
           }
         ]
       }
     },
-    "BackupAnomalyDetectionRule": {
+    "AnomalyDetectionAnomalyDetectionRule": {
       "Type": "AWS::Events::Rule",
       "Properties": {
         "EventPattern": {
@@ -191,7 +350,7 @@
           {
             "Arn": {
               "Fn::GetAtt": [
-                "BackupAnomalyDetectionLambda",
+                "AnomalyDetection",
                 "Arn"
               ]
             },
@@ -203,20 +362,20 @@
         ]
       }
     },
-    "BackupAnomalyDetectionRuleAllowEventRule": {
+    "AnomalyDetectionAnomalyDetectionRuleAllowEventRuleAnomalyDetectionStackAnomalyDetection": {
       "Type": "AWS::Lambda::Permission",
       "Properties": {
         "Action": "lambda:InvokeFunction",
         "FunctionName": {
           "Fn::GetAtt": [
-            "BackupAnomalyDetectionLambda",
+            "AnomalyDetection",
             "Arn"
           ]
         },
         "Principal": "events.amazonaws.com",
         "SourceArn": {
           "Fn::GetAtt": [
-            "BackupAnomalyDetectionRule",
+            "AnomalyDetectionAnomalyDetectionRule",
             "Arn"
           ]
         }
