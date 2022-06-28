@@ -10,8 +10,7 @@
     },
     "BackupAnomalyDetectionS3Bucket": {
       "Type": "String",
-      "Default": "anomaly-detection-bucket-s3",
-      "Description": "Location of S3 bucket which contains the Lambda code"
+      "Description": "Location of S3 bucket which contains the Lambda code. This S3 bucket needs to exist in the same region as this deployment."
     },
     "BackupAnomalyDetectionS3Code": {
       "Type": "String",
